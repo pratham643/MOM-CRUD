@@ -15,10 +15,7 @@ return new class extends Migration
             $table->id();
             $table->timestamps();
         });
-    }
 
-     public function up(): void
-    {
         Schema::create('phone', function (Blueprint $table) {
             $table->id();
             $table->timestamps();
@@ -30,6 +27,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('phone');
         Schema::dropIfExists('table1');
     }
 };
