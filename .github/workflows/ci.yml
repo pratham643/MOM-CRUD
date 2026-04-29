@@ -1,0 +1,34 @@
+name: PHP CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+
+    - name: Install Dependencies
+      run: |
+        if [ -f composer.json ]; then
+          composer install
+        fi
+
+    - name: Check PHP Syntax
+      run: find . -name "*.php" -exec php -l {} \;
+
+    - name: Run Tests
+      run: |
+        if [ -f vendor/bin/phpunit ]; then
+          vendor/bin/phpunit
+        fi
