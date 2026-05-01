@@ -35,6 +35,7 @@
                         <td>{{ $employee->name }}</td>
                         <td>{{ $employee->created_at }}</td>
                         <td>{{ $employee->updated_at }}</td>
+                        <h2>Deployed at: {{ now() }}</h2>
                         <td>
                             <a href="{{ route('employees.show', $employee->id) }}" class="btn btn-info btn-sm">View</a>
                             <a href="{{ route('employees.edit', $employee->id) }}" class="btn btn-warning btn-sm">Edit</a>
