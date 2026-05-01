@@ -21,7 +21,7 @@
                 @enderror
             </div>
 
-            <div class="mb-3">
+            <!-- <div class="mb-3">
                 <label for="email" class="form-label">Email</label>
                 <input type="email" class="form-control" id="email" name="email" value="{{ old('email') }}" required>
                 @error('email')
@@ -59,7 +59,7 @@
                 @error('joining_date')
                     <div class="text-danger">{{ $message }}</div>
                 @enderror
-            </div>
+            </div> -->
 
             <button type="submit" class="btn btn-primary">Create</button>
             <a href="{{ route('employees.index') }}" class="btn btn-secondary">Cancel</a>
