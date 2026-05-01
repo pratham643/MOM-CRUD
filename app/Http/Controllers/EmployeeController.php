@@ -31,11 +31,6 @@ class EmployeeController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email',
-            'department' => 'required|string|max:255',
-            'designation' => 'required|string|max:255',
-            'salary' => 'required|numeric',
-            'joining_date' => 'required|date',
         ]);
 
         Employee::create($request->all());
