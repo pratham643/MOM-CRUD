@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
@@ -29,11 +30,16 @@ class EmployeeController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:employees,email',
+            'department' => 'required|string|max:255',
+            'designation' => 'required|string|max:255',
+            'salary' => 'required|numeric|min:0|max:99999999.99',
+            'joining_date' => 'required|date',
         ]);
 
-        Employee::create($request->all());
+        Employee::create($validated);
 
         return redirect()->route('employees.index')
             ->with('success', 'Employee created successfully.');
@@ -60,11 +66,21 @@ class EmployeeController extends Controller
      */
     public function update(Request $request, Employee $employee)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('employees', 'email')->ignore($employee->id),
+            ],
+            'department' => 'required|string|max:255',
+            'designation' => 'required|string|max:255',
+            'salary' => 'required|numeric|min:0|max:99999999.99',
+            'joining_date' => 'required|date',
         ]);
 
-        $employee->update($request->all());
+        $employee->update($validated);
 
         return redirect()->route('employees.index')
             ->with('success', 'Employee updated successfully.');

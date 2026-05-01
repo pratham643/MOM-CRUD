@@ -14,6 +14,11 @@
             <div class="card-body">
                 <h5 class="card-title">{{ $employee->name }}</h5>
                 <p class="card-text">
+                    <strong>Email:</strong> {{ $employee->email }}<br>
+                    <strong>Department:</strong> {{ $employee->department }}<br>
+                    <strong>Designation:</strong> {{ $employee->designation }}<br>
+                    <strong>Salary:</strong> {{ $employee->salary }}<br>
+                    <strong>Joining Date:</strong> {{ $employee->joining_date }}<br>
                     <strong>Created At:</strong> {{ $employee->created_at }}<br>
                     <strong>Updated At:</strong> {{ $employee->updated_at }}
                 </p>

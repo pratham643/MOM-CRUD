@@ -8,7 +8,7 @@
 </head>
 <body>
     <div class="container mt-5">
-        <h1 class="mb-4">Employee Managementt</h1>
+        <h1 class="mb-4">Employee Management</h1>
      <h3 style="color:green;">
 🚀 CI/CD Working - {{ now() }}
 </h3>
@@ -26,6 +26,11 @@
                 <tr>
                     <th>ID</th>
                     <th>Name</th>
+                    <th>Email</th>
+                    <th>Department</th>
+                    <th>Designation</th>
+                    <th>Salary</th>
+                    <th>Joining Date</th>
                     <th>Created At</th>
                     <th>Updated At</th>
                     <th>Actions</th>
@@ -36,6 +41,11 @@
                     <tr>
                         <td>{{ $employee->id }}</td>
                         <td>{{ $employee->name }}</td>
+                        <td>{{ $employee->email }}</td>
+                        <td>{{ $employee->department }}</td>
+                        <td>{{ $employee->designation }}</td>
+                        <td>{{ $employee->salary }}</td>
+                        <td>{{ $employee->joining_date }}</td>
                         <td>{{ $employee->created_at }}</td>
                         <td>{{ $employee->updated_at }}</td>
                         <td>
