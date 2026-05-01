@@ -17,11 +17,12 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /var/www/mom-crud
+            cd /var/www/html/mom-crud
             git pull origin main
             composer install --no-dev --optimize-autoloader
             php artisan migrate --force
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
+            sudo systemctl restart php8.2-fpm
             sudo systemctl restart nginx
