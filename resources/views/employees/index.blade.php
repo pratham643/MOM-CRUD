@@ -8,7 +8,7 @@
 </head>
 <body>
     <div class="container mt-5">
-        <h1 class="mb-4">Employee Management</h1>
+        <h1 class="mb-4">Employee Managementt</h1>
         <h3 style="color:green;">
 🚀 Auto Deployed at: {{ now() }}
 </h3>
