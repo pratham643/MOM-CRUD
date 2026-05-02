@@ -18,6 +18,7 @@ class EmployeeTest extends TestCase
             'designation' => 'Developer',
             'salary' => '50000.00',
             'joining_date' => '2026-05-01',
+            'manager' => 'John Doe',
         ]);
 
         $response->assertRedirect('/employees');
@@ -28,6 +29,7 @@ class EmployeeTest extends TestCase
             'department' => 'Engineering',
             'designation' => 'Developer',
             'joining_date' => '2026-05-01 00:00:00',
+            'manager' => 'John Doe',
         ]);
     }
 }
