@@ -37,6 +37,7 @@ class EmployeeController extends Controller
             'designation' => 'required|string|max:255',
             'salary' => 'required|numeric|min:0|max:99999999.99',
             'joining_date' => 'required|date',
+            'manager' => 'required|string|max:255',
         ]);
 
         Employee::create($validated);
@@ -78,6 +79,7 @@ class EmployeeController extends Controller
             'designation' => 'required|string|max:255',
             'salary' => 'required|numeric|min:0|max:99999999.99',
             'joining_date' => 'required|date',
+            'manager' => 'required|string|max:255',
         ]);
 
         $employee->update($validated);

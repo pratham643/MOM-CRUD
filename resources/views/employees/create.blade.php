@@ -61,6 +61,14 @@
                 @enderror
             </div>
 
+            <div class="mb-3">
+                <label for="manager" class="form-label">Manager Name</label>
+                <input type="text" class="form-control" id="manager" name="manager" value="{{ old('manager') }}" required>
+                @error('manager')
+                    <div class="text-danger">{{ $message }}</div>
+                @enderror
+            </div>
+
             <button type="submit" class="btn btn-primary">Create</button>
             <a href="{{ route('employees.index') }}" class="btn btn-secondary">Cancel</a>
         </form>

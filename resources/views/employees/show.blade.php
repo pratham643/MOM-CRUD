@@ -19,6 +19,7 @@
                     <strong>Designation:</strong> {{ $employee->designation }}<br>
                     <strong>Salary:</strong> {{ $employee->salary }}<br>
                     <strong>Joining Date:</strong> {{ $employee->joining_date }}<br>
+                    <strong>Manager:</strong> {{ $employee->manager }}<br>
                     <strong>Created At:</strong> {{ $employee->created_at }}<br>
                     <strong>Updated At:</strong> {{ $employee->updated_at }}
                 </p>

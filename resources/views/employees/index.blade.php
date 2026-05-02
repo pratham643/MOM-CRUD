@@ -31,6 +31,7 @@
                     <th>Designation</th>
                     <th>Salary</th>
                     <th>Joining Date</th>
+                    <th>Manager</th>
                     <th>Created At</th>
                     <th>Updated At</th>
                     <th>Actions</th>
@@ -46,6 +47,7 @@
                         <td>{{ $employee->designation }}</td>
                         <td>{{ $employee->salary }}</td>
                         <td>{{ $employee->joining_date }}</td>
+                        <td>{{ $employee->manager }}</td>
                         <td>{{ $employee->created_at }}</td>
                         <td>{{ $employee->updated_at }}</td>
                         <td>
