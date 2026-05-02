@@ -10,7 +10,7 @@
     <div class="container mt-5">
         <h1 class="mb-4">Employee Management</h1>
      <h3 style="color:green;">
-🚀 CI/CD Working - {{ now() }}
+🚀 Time - {{ now() }}
 </h3>
         
         @if(session('success'))
