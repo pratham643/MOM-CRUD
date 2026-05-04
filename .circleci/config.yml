@@ -1,0 +1,104 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: cimg/php:8.2
+        environment:
+          APP_ENV: testing
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: laravel_test
+          DB_USERNAME: laravel
+          DB_PASSWORD: password
+      - image: cimg/mysql:8.0
+        environment:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: laravel_test
+          MYSQL_USER: laravel
+          MYSQL_PASSWORD: password
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - composer-v1-{{ checksum "composer.lock" }}
+            - composer-v1-
+
+      - run:
+          name: Install Composer dependencies
+          command: composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+
+      - save_cache:
+          key: composer-v1-{{ checksum "composer.lock" }}
+          paths:
+            - ~/.composer/cache
+
+      - run:
+          name: Prepare environment
+          command: |
+            cp .env.ci .env
+            php artisan key:generate --force
+
+      - run:
+          name: Wait for MySQL
+          command: |
+            for i in $(seq 1 30); do
+              mysqladmin ping -h 127.0.0.1 -u laravel -ppassword --silent && exit 0
+              sleep 2
+            done
+            exit 1
+
+      - run:
+          name: Run migrations
+          command: php artisan migrate --force
+
+      - run:
+          name: Run PHPUnit
+          command: php artisan test --log-junit test-results/phpunit.xml
+
+      - store_test_results:
+          path: test-results
+
+      - store_artifacts:
+          path: storage/logs
+          destination: laravel-logs
+
+  deploy-staging:
+    docker:
+      - image: cimg/aws:2024.03
+    steps:
+      - checkout
+      - run:
+          name: Trigger AWS staging CodePipeline
+          command: aws codepipeline start-pipeline-execution --name "${AWS_STAGING_PIPELINE_NAME}"
+
+  deploy-production:
+    docker:
+      - image: cimg/aws:2024.03
+    steps:
+      - checkout
+      - run:
+          name: Trigger AWS production CodePipeline
+          command: aws codepipeline start-pipeline-execution --name "${AWS_PRODUCTION_PIPELINE_NAME}"
+
+workflows:
+  laravel-ci-cd:
+    jobs:
+      - test
+      - deploy-staging:
+          requires:
+            - test
+          filters:
+            branches:
+              only:
+                - develop
+                - /feature\/.*/
+      - deploy-production:
+          requires:
+            - test
+          filters:
+            branches:
+              only:
+                - main

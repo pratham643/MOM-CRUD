@@ -1,0 +1,33 @@
+version: 0.0
+os: linux
+
+files:
+  - source: /
+    destination: /var/www/html/mom-crud
+    overwrite: true
+
+permissions:
+  - object: /var/www/html/mom-crud
+    pattern: "**"
+    mode: 755
+    type:
+      - file
+      - directory
+  - object: /var/www/html/mom-crud/storage
+    pattern: "**"
+    mode: 775
+    type:
+      - file
+      - directory
+  - object: /var/www/html/mom-crud/bootstrap/cache
+    pattern: "**"
+    mode: 775
+    type:
+      - file
+      - directory
+
+hooks:
+  AfterInstall:
+    - location: deploy.sh
+      timeout: 900
+      runas: root

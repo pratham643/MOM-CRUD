@@ -1,0 +1,86 @@
+version: 0.2
+
+env:
+  variables:
+    APP_ENV: testing
+    DB_CONNECTION: sqlite
+    DB_DATABASE: database/database.sqlite
+    COMPOSER_ALLOW_SUPERUSER: "1"
+
+phases:
+  install:
+    runtime-versions:
+      php: 8.2
+      nodejs: 20
+    commands:
+      - echo "Installing Composer"
+      - php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+      - php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+      - rm composer-setup.php
+      - composer --version
+      - php --version
+
+  pre_build:
+    commands:
+      - echo "Installing application dependencies"
+      - composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+      - if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - echo "Preparing isolated test environment"
+      - cp .env.ci .env
+      - mkdir -p database storage/logs bootstrap/cache
+      - touch database/database.sqlite
+      - php artisan key:generate --force
+      - php artisan config:clear
+      - php artisan migrate --force
+
+  build:
+    commands:
+      - echo "Running regression test suite"
+      - php artisan test --log-junit junit.xml
+      - echo "Building frontend assets"
+      - npm run build
+      - echo "Preparing production dependencies"
+      - composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader --classmap-authoritative
+      - php artisan config:clear
+      - php artisan route:clear
+      - php artisan view:clear
+
+  post_build:
+    commands:
+      - echo "Preparing CodeDeploy artifact"
+      - chmod +x deploy.sh
+      - rm -f .env database/database.sqlite
+      - echo "Build completed on $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+artifacts:
+  files:
+    - app/**/*
+    - bootstrap/**/*
+    - config/**/*
+    - database/**/*
+    - public/**/*
+    - resources/**/*
+    - routes/**/*
+    - storage/app/**/*
+    - storage/framework/.gitignore
+    - storage/framework/cache/.gitignore
+    - storage/framework/sessions/.gitignore
+    - storage/framework/views/.gitignore
+    - vendor/**/*
+    - composer.json
+    - composer.lock
+    - artisan
+    - appspec.yml
+    - deploy.sh
+  discard-paths: no
+
+cache:
+  paths:
+    - /root/.composer/cache/**/*
+    - node_modules/**/*
+
+reports:
+  phpunit:
+    files:
+      - junit.xml
+    file-format: JUNITXML

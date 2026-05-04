@@ -1,55 +1,256 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# MOM CRUD Laravel CI/CD
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Production-grade CI/CD setup for a Laravel application deployed to AWS EC2 with regression testing, separated environments, CodeBuild packaging, and CodeDeploy deployment.
 
-## About Laravel
+## Architecture
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+```text
+Developer
+  |
+  | push feature/*, develop, or main
+  v
+GitHub
+  |
+  | GitHub Actions / CircleCI
+  | - install PHP dependencies
+  | - prepare isolated test environment
+  | - migrate test database
+  | - run PHPUnit regression tests
+  v
+AWS CodePipeline
+  |
+  | source stage from GitHub/CodeStar connection
+  v
+AWS CodeBuild
+  |
+  | buildspec.yml
+  | - install Composer dependencies
+  | - run tests
+  | - build frontend assets
+  | - prepare CodeDeploy artifact
+  v
+AWS CodeDeploy
+  |
+  | appspec.yml + deploy.sh
+  | - copy artifact to EC2
+  | - run migrations
+  | - cache config/routes/views
+  | - restart web services
+  v
+EC2 /var/www/html/mom-crud
+```
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Regression Testing
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+The Employee CRUD regression suite is in `tests/Feature/EmployeeTest.php`.
 
-## Learning Laravel
+It uses Laravel `RefreshDatabase` so each test starts with a clean database. The suite covers:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+- Create employee with valid data
+- Create employee validation failures
+- Duplicate email validation
+- Employee index and show pages
+- Update employee with valid data
+- Update validation errors
+- Delete employee
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Run locally:
 
-## Laravel Sponsors
+```bash
+cp .env.ci .env
+touch database/database.sqlite
+php artisan key:generate --force
+php artisan migrate --force
+php artisan test
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## GitHub Actions
 
-### Premium Partners
+Workflow: `.github/workflows/ci.yml`
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+The CI job runs on `feature/**`, `develop`, `main`, and pull requests into `develop` or `main`.
 
-## Contributing
+Pipeline steps:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+1. Checkout source.
+2. Setup PHP 8.2.
+3. Install Composer dependencies with cache.
+4. Copy `.env.ci` to `.env`.
+5. Create SQLite test database.
+6. Generate `APP_KEY`.
+7. Run migrations.
+8. Run `php artisan test`.
 
-## Code of Conduct
+If tests fail, the job fails and deployment jobs do not run.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Optional deployment triggers:
 
-## Security Vulnerabilities
+- `feature/**` and `develop` start the staging CodePipeline.
+- `main` starts the production CodePipeline.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Required GitHub secrets:
+
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION`
+- `AWS_STAGING_PIPELINE_NAME`
+- `AWS_PRODUCTION_PIPELINE_NAME`
+
+## CircleCI
+
+Workflow: `.circleci/config.yml`
+
+CircleCI uses:
+
+- `cimg/php:8.2`
+- `cimg/mysql:8.0`
+
+Pipeline steps:
+
+1. Install Composer dependencies.
+2. Copy `.env.ci`.
+3. Generate app key.
+4. Wait for MySQL.
+5. Run migrations.
+6. Run PHPUnit and store JUnit results.
+7. Trigger staging or production CodePipeline after tests pass.
+
+Required CircleCI environment variables:
+
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION`
+- `AWS_STAGING_PIPELINE_NAME`
+- `AWS_PRODUCTION_PIPELINE_NAME`
+
+## AWS CodePipeline
+
+Recommended stages:
+
+1. Source: GitHub via CodeStar connection.
+2. Build: CodeBuild project using `buildspec.yml`.
+3. Deploy: CodeDeploy EC2 deployment group using `appspec.yml`.
+
+Use separate pipelines or deployment groups:
+
+- Staging: source branch `develop` and optionally `feature/**`
+- Production: source branch `main`
+
+## CodeBuild
+
+File: `buildspec.yml`
+
+CodeBuild installs PHP 8.2 and Node.js 20, installs dependencies, runs migrations against SQLite, runs PHPUnit, builds frontend assets, removes local `.env`, and emits a CodeDeploy artifact containing the Laravel app, vendor dependencies, `appspec.yml`, and `deploy.sh`.
+
+Tests run before production dependencies are optimized. This keeps dev-only test packages available during test execution and removes them before artifact creation.
+
+## CodeDeploy
+
+File: `appspec.yml`
+
+CodeDeploy copies the artifact to:
+
+```text
+/var/www/html/mom-crud
+```
+
+Then it runs:
+
+```text
+deploy.sh
+```
+
+The deployment script:
+
+- Logs to `/var/log/mom-crud`
+- Detects staging or production from the deployment group name when available
+- Uses CodeDeploy artifacts by default
+- Pulls latest Git code only if `/var/www/html/mom-crud/.git` exists
+- Loads environment config
+- Runs `composer install --no-dev`
+- Runs `php artisan migrate --force`
+- Clears and rebuilds Laravel caches
+- Sets storage permissions
+- Restarts PHP-FPM and Apache or Nginx
+- Takes the app out of maintenance mode if a failure occurs
+
+## Environment Separation
+
+Templates are committed for structure only:
+
+- `.env.dev`
+- `.env.staging`
+- `.env.production`
+- `.env.ci`
+
+Do not store real production secrets in Git. On EC2, place real environment files here:
+
+```text
+/etc/mom-crud/.env.staging
+/etc/mom-crud/.env.production
+```
+
+The deployment script loads those files first. If they do not exist, it falls back to the repository template.
+
+Pipeline switching:
+
+- CI uses `.env.ci`.
+- Staging deployment uses `DEPLOYMENT_GROUP_NAME` containing `staging`, or `DEPLOY_ENV=staging`.
+- Production deployment uses `DEPLOYMENT_GROUP_NAME` containing `production`, or `DEPLOY_ENV=production`.
+
+## Branching Strategy
+
+Use this flow:
+
+```text
+feature/my-change -> CI tests -> staging deployment
+develop           -> CI tests -> staging deployment
+main              -> CI tests -> production deployment
+```
+
+Recommended team practice:
+
+1. Create work on `feature/*`.
+2. Push feature branch to run regression tests and deploy to staging.
+3. Open a pull request into `develop`.
+4. Merge `develop` into `main` only after staging validation.
+5. Push or merge into `main` to deploy production.
+
+## Deployment Trigger
+
+GitHub Actions and CircleCI both trigger AWS CodePipeline after tests pass. You can also trigger manually:
+
+```bash
+aws codepipeline start-pipeline-execution --name "$AWS_STAGING_PIPELINE_NAME"
+aws codepipeline start-pipeline-execution --name "$AWS_PRODUCTION_PIPELINE_NAME"
+```
+
+## Rollback
+
+Use CodeDeploy rollback:
+
+- Enable automatic rollback on deployment failure.
+- Enable automatic rollback on CloudWatch alarm breach.
+- Keep the previous successful deployment revision in CodeDeploy/S3.
+
+Manual rollback:
+
+```bash
+aws deploy create-deployment \
+  --application-name MOM-CRUD \
+  --deployment-group-name production \
+  --revision revisionType=S3,s3Location="{bucket=mom-crud-artifacts,key=previous-artifact.zip,bundleType=zip}"
+```
+
+Database migrations should be backward-compatible. Avoid destructive schema changes in the same release as application code that depends on them.
+
+## Best Practices
+
+- Store secrets in GitHub Secrets, CircleCI contexts, AWS SSM Parameter Store, or AWS Secrets Manager.
+- Keep real `.env` files outside the repository on EC2.
+- Use `composer install --no-dev --optimize-autoloader --classmap-authoritative` for deployed artifacts.
+- Cache Laravel config, routes, and views after deployment.
+- Use CodeDeploy rolling or blue/green deployments to reduce downtime.
+- Keep migrations forward-compatible.
+- Monitor deployment logs in `/var/log/mom-crud`.
+- Use CloudWatch alarms for 5xx rates, CPU, memory, disk, and health checks.
