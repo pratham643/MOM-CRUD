@@ -22,7 +22,7 @@ class EmployeeController extends Controller
                   ->orWhere('department', 'like', "%{$search}%");
         }
 
-        $employees = $query->all();
+        $employees = $query->get();
         return view('employees.index', compact('employees'));
     }
 
