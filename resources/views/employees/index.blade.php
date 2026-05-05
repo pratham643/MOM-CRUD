@@ -26,7 +26,7 @@
             <div class="col-md-6">
                 <form method="GET" action="{{ route('employees.index') }}" class="d-flex gap-2">
                     <input type="text" name="search" class="form-control" placeholder="Search by name, email, or department" value="{{ request('search') }}">
-                    <button type="submit" class="btn btn-success">Search</button>
+                    <button type="submit" class="btn btn-success">Search EMP</button>
                     @if(request('search'))
                         <a href="{{ route('employees.index') }}" class="btn btn-secondary">Clear</a>
                     @endif
