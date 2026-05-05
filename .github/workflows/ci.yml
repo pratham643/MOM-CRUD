@@ -1,11 +1,10 @@
-name: Laravel CI
+name: Laravel CI/CD Pipeline
 
 on:
   push:
     branches:
       - main
       - develop
-      - 'feature/**'
   pull_request:
     branches:
       - main
@@ -13,22 +12,50 @@ on:
 
 env:
   PHP_VERSION: '8.2'
+  REGISTRY: ghcr.io
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  regression-tests:
-    name: PHPUnit Regression Tests
+  test:
+    name: PHPUnit Tests with MySQL
     runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test_db
+          MYSQL_ALLOW_EMPTY_PASSWORD: false
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 3306:3306
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
-          extensions: mbstring, xml, ctype, curl, dom, fileinfo, filter, hash, openssl, pdo, pdo_sqlite, tokenizer
+          extensions: mbstring, xml, ctype, curl, dom, fileinfo, filter, hash, openssl, pdo, pdo_mysql, tokenizer
           coverage: none
+
+      - name: Wait for MySQL
+        run: |
+          until mysqladmin ping -h 127.0.0.1 -u root -proot --silent; do
+            echo 'Waiting for MySQL...'
+            sleep 1
+          done
+        timeout-minutes: 5
 
       - name: Cache Composer packages
         uses: actions/cache@v4
@@ -40,34 +67,110 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
 
-      - name: Prepare test environment
-        run: |
-          cp .env.ci .env
-          mkdir -p database
-          touch database/database.sqlite
-          php artisan key:generate --force
-
-      - name: Run migrations
-        run: php artisan migrate --force
-        env:
-          DB_CONNECTION: sqlite
-          DB_DATABASE: database/database.sqlite
-
-      - name: Run PHPUnit
-        run: php artisan test
+      - name: Generate Laravel APP_KEY
+        run: php artisan key:generate --force
         env:
           APP_ENV: testing
-          DB_CONNECTION: sqlite
-          DB_DATABASE: database/database.sqlite
 
-  trigger-staging:
-    name: Trigger AWS Staging Pipeline
-    needs: regression-tests
+      - name: Create .env.testing
+        run: |
+          cat > .env.testing << EOF
+          APP_NAME="MOM CRUD"
+          APP_ENV=testing
+          APP_KEY=$(php artisan key:generate --show --no-ansi | grep -oP 'base64:\K.*')
+          APP_DEBUG=true
+          APP_URL=http://localhost
+
+          LOG_CHANNEL=stack
+          LOG_LEVEL=debug
+
+          DB_CONNECTION=mysql
+          DB_HOST=127.0.0.1
+          DB_PORT=3306
+          DB_DATABASE=test_db
+          DB_USERNAME=root
+          DB_PASSWORD=root
+
+          CACHE_STORE=array
+          QUEUE_CONNECTION=sync
+          SESSION_DRIVER=array
+          MAIL_MAILER=array
+
+          BCRYPT_ROUNDS=4
+          BROADCAST_CONNECTION=null
+          FILESYSTEM_DISK=local
+          EOF
+
+      - name: Run database migrations
+        run: php artisan migrate --force --env=testing
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: test_db
+          DB_USERNAME: root
+          DB_PASSWORD: root
+
+      - name: Run PHPUnit tests
+        id: tests
+        run: php artisan test --env=testing
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: test_db
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          APP_ENV: testing
+
+      - name: Notify Telegram on Test Success
+        if: success()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ✅ Tests PASSED 🎉
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+            
+            All PHPUnit tests passed successfully!
+
+      - name: Notify Telegram on Test Failure
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ❌ Tests FAILED 🔴
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+            
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Please check the test logs for details.
+
+  deploy-staging:
+    name: Deploy to AWS Staging
+    needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && success()
     environment: staging
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -75,17 +178,60 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Start staging CodePipeline
-        run: aws codepipeline start-pipeline-execution --name "${{ secrets.AWS_STAGING_PIPELINE_NAME }}"
+      - name: Start AWS Staging CodePipeline
+        id: deploy
+        run: |
+          aws codepipeline start-pipeline-execution \
+            --name "${{ secrets.AWS_STAGING_PIPELINE_NAME }}"
+          echo "pipeline_execution_started=true" >> $GITHUB_OUTPUT
 
-  trigger-production:
-    name: Trigger AWS Production Pipeline
-    needs: regression-tests
+      - name: Notify Telegram on Staging Deployment Success
+        if: success()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            🚀 Staging Deployment STARTED
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Pipeline: ${{ secrets.AWS_STAGING_PIPELINE_NAME }}
+            
+            AWS CodePipeline has been triggered successfully!
+
+      - name: Notify Telegram on Staging Deployment Failure
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ❌ Staging Deployment FAILED
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Failed to start AWS Staging Pipeline.
+
+  deploy-production:
+    name: Deploy to AWS Production
+    needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && success()
     environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -93,5 +239,42 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Start production CodePipeline
-        run: aws codepipeline start-pipeline-execution --name "${{ secrets.AWS_PRODUCTION_PIPELINE_NAME }}"
+      - name: Start AWS Production CodePipeline
+        id: deploy
+        run: |
+          aws codepipeline start-pipeline-execution \
+            --name "${{ secrets.AWS_PRODUCTION_PIPELINE_NAME }}"
+          echo "pipeline_execution_started=true" >> $GITHUB_OUTPUT
+
+      - name: Notify Telegram on Production Deployment Success
+        if: success()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            🚀 Production Deployment STARTED
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Pipeline: ${{ secrets.AWS_PRODUCTION_PIPELINE_NAME }}
+            
+            AWS CodePipeline has been triggered successfully!
+
+      - name: Notify Telegram on Production Deployment Failure
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ❌ Production Deployment FAILED
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Failed to start AWS Production Pipeline.
