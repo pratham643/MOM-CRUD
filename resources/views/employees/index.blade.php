@@ -21,7 +21,7 @@
 
         <div class="row mb-3">
             <div class="col-md-6">
-                <a href="{{ route('employees.create') }}" class="btn btn-primary">Add New Employee</a>
+                <a href="{{ route('employees.create') }}" class="btn btn-primary">Add New Employee Details</a>
             </div>
             <div class="col-md-6">
                 <form method="GET" action="{{ route('employees.index') }}" class="d-flex gap-2">
