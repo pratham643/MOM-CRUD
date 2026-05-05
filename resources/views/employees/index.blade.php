@@ -19,7 +19,20 @@
             </div>
         @endif
 
-        <a href="{{ route('employees.create') }}" class="btn btn-primary mb-3">Add New Employee</a>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <a href="{{ route('employees.create') }}" class="btn btn-primary">Add New Employee</a>
+            </div>
+            <div class="col-md-6">
+                <form method="GET" action="{{ route('employees.index') }}" class="d-flex gap-2">
+                    <input type="text" name="search" class="form-control" placeholder="Search by name, email, or department" value="{{ request('search') }}">
+                    <button type="submit" class="btn btn-success">Search</button>
+                    @if(request('search'))
+                        <a href="{{ route('employees.index') }}" class="btn btn-secondary">Clear</a>
+                    @endif
+                </form>
+            </div>
+        </div>
 
         <table class="table table-bordered">
             <thead>
