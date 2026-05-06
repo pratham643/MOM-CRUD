@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+// use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
@@ -14,6 +15,7 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         $query = Employee::query();
+        ###
 
         if ($request->has('search') && $request->search) {
             $search = $request->search;
